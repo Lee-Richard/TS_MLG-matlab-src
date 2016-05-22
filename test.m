@@ -1,7 +1,7 @@
 clear all;
 clc;
 
-%function TSMG
+%function TSMGa
 %
 %inputs:
 %simulation time: simulation time in seconds
