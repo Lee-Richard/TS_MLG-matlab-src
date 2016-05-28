@@ -14,7 +14,7 @@ clc;
 
 %simulation parameters
 COST = 10;    %存储代价
-SIMULATIONTIME = 10000;    %仿真时间
+SIMULATIONTIME = 50000;    %仿真时间
 SLOTPERSECOND=50;    %时隙
 TIMES = 10;    %最大存储次数，映射为多层图层数
 STORAGE = 100*SLOTPERSECOND;    %每个节点的存储大小
@@ -43,6 +43,7 @@ used_bandwidth = 0;    %已经被用过的总带宽
 hop_count = 0;    %？
 max_storage_utilization = zeros(1,14);    %存储最大利用率
 number_of_storaged_flow=0;    %被存储的流的数量
+max_layers = 0;
 
 %%auxiliary tables and parameters
 node_numbers=14;
@@ -145,6 +146,12 @@ fprintf('ite=%d\n',ite);
         %构造辅助图 
         auxiliary_tsml_table = tsml_table;
         layers = size(tsml_table,1)/node_numbers;    %计算当前时移多层图的层数
+        
+        if layers> max_layers
+            max_layers = layers;
+        end
+        disp(layers);
+        disp(max_layers);
 %         
 %         %去掉剩余带宽小于请求带宽(默认为1)的空间链路
 %         if layers ~= 1
@@ -192,6 +199,7 @@ fprintf('ite=%d\n',ite);
 
         %在刚才构造的辅助图中查找路径
         i=1;
+
         while(i <= layers)
             [distance,path] = dijkstra(auxiliary_tsml_table,source,destination+(i-1)*node_numbers);
             if distance == inf
@@ -206,7 +214,6 @@ fprintf('ite=%d\n',ite);
         disp(path);
         %if path exists, update tsmlg
         if distance < inf
-            
             %在tsml_bandwidth_table中减去被占用的带宽，包含存储
 %             for i=1:size(path,2)-1
 %                 tsml_bandwidth_table(path(i),path(i+1)) = tsml_bandwidth_table(path(i),path(i+1)) - applied_bandwidth;
@@ -222,12 +229,14 @@ fprintf('ite=%d\n',ite);
             index_end = 1;    %每次开始前重置是必要的
             storage_index_start = -1;
             storage_index_end = 0;
+            layer_overlay_flag = 0;
             %j=1;    %保证interval_table和tsml_table的层数一致
             temp_layer_interval_table = layer_interval_table;
             reserve_layer_interval_table = layer_interval_table;
             reserve_tsml_table = tsml_table;
             reserve_tsml_bandwidth_table = tsml_bandwidth_table;
-            for j=1:size(path,2)-1    %每一轮循环过两个点，更新一轮多层图和interval_table(可选)
+            j=1;
+            while (j < size(path,2)-1)    %每一轮循环过两个点，更新一轮多层图和interval_table(可选)
                 if mod(path(j),node_numbers) == mod(path(j+1),node_numbers)    %时域路径，存
                     layer = floor((path(j)-1)/node_numbers) + 1;
                     if storage_switch == 0    %开始总结存储 路→存
@@ -236,6 +245,7 @@ fprintf('ite=%d\n',ite);
                         %记录下index1
                         %storage_index_start = floor(path(j)/(node_numbers+1)) + 1;    %有问题吗?
                         storage_index_start = find (temp_layer_interval_table == layer_interval_table(layer));
+                        j = j+1;
                         continue;
                     else    %继续总结存储   存→存
                         if j == 1
@@ -244,6 +254,7 @@ fprintf('ite=%d\n',ite);
                             disp('aaaaaa');
                             storage_switch = 1;
                         end
+                        j = j+1;
                         continue;
                     end
                 else    %空间路径，带宽         
@@ -329,15 +340,52 @@ fprintf('ite=%d\n',ite);
                           for k=index_start:index_end-1   %层
                                 tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) = ...
                                     tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) - applied_bandwidth;
-                                if tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) == 0     %同步更新tsml_table
+                              if tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) < 0  %层重叠
+                                  auxiliary_tsml_table(path(j),path(j+1)) = inf;
+                                  layer_overlay_flag = 1;
+                                  break;
+                              end
+                              if tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) == 0     %同步更新tsml_table
                                     tsml_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) = inf;
+                              end
+%                                 if tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) < 0     %异常处理
+%                                     disp('335');
+%                                     return;
+%                                 end
+                          end
+                          if layer_overlay_flag == 1    %重叠
+                              %找路径，初始化，continue
+                              layer_overlay_flag = 0;
+                                i=1;
+                                while(i <= layers)
+                                    [distance,path] = dijkstra(auxiliary_tsml_table,source,destination+(i-1)*node_numbers);
+                                    if distance == inf
+                                        i = i+1;
+                                        continue;
+                                    else
+                                        break;
+                                    end
                                 end
-                                if tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) < 0     %异常处理
-                                    disp('335');
-                                    return;
+                                if distance < inf
+                                    j=1;
+                                    storage_switch = 1;    %初始化：存→路or存→存，为了加层
+                                    % index1 = 1;     
+                                    index_end = 1;    %每次开始前重置是必要的
+                                    storage_index_start = -1;
+                                    storage_index_end = 0;
+                                    layer_overlay_flag = 0;
+                                    %j=1;    %保证interval_table和tsml_table的层数一致
+                                    temp_layer_interval_table = layer_interval_table;
+                                    layer_interval_table=reserve_layer_interval_table ;
+                                    tsml_table =reserve_tsml_table;
+                                    tsml_bandwidth_table = reserve_tsml_bandwidth_table;
+                                    continue;
+                                else
+                                    disp('reject the flow');
+                                    break;
                                 end
-                           end
-
+                          end
+                           
                            %减存储资源
                            if storage_index_start ~= -1    %排除初始化的情形,初始化默认上层为存，不减存储的存
                                for k=storage_index_start:storage_index_end-1   %层
@@ -357,12 +405,49 @@ fprintf('ite=%d\n',ite);
                         for k=index_start:index_end-1   %层
                             tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) = ...
                                 tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) - applied_bandwidth;
+                            if tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) < 0
+                                auxiliary_tsml_table(path(j),path(j+1)) = inf;
+                                layer_overlay_flag = 1;
+                                break;
+                            end
                             if tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) == 0     %同步更新tsml_table
                                 tsml_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) = inf;
                             end
-                            if tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) < 0     %异常处理
-                                disp('363');
-                                return;
+%                             if tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) < 0     %异常处理
+%                                 disp('363');
+%                                 return;
+%                             end
+                        end
+                        if layer_overlay_flag == 1    %重叠
+                          %找路径，初始化，continue
+                          layer_overlay_flag = 0;
+                            i=1;
+                            while(i <= layers)
+                                [distance,path] = dijkstra(auxiliary_tsml_table,source,destination+(i-1)*node_numbers);
+                                if distance == inf
+                                    i = i+1;
+                                    continue;
+                                else
+                                    break;
+                                end
+                            end
+                            if distance < inf
+                                j=1;
+                                storage_switch = 1;    %初始化：存→路or存→存，为了加层
+                                % index1 = 1;     
+                                index_end = 1;    %每次开始前重置是必要的
+                                storage_index_start = -1;
+                                storage_index_end = 0;
+                                layer_overlay_flag = 0;
+                                %j=1;    %保证interval_table和tsml_table的层数一致
+                                temp_layer_interval_table = layer_interval_table;
+                                layer_interval_table=reserve_layer_interval_table ;
+                                tsml_table =reserve_tsml_table;
+                                tsml_bandwidth_table = reserve_tsml_bandwidth_table;
+                                continue;
+                            else
+                                disp('reject the flow');
+                                break;
                             end
                         end
                     end
@@ -371,6 +456,7 @@ fprintf('ite=%d\n',ite);
                 %disp(tsml_bandwidth_table);   
 %                 fprintf('j=%d\n',j);
 %                 disp(tsml_bandwidth_table);
+                j=j+1;
             end
             layer_interval_table = temp_layer_interval_table;
 %             fprintf('before transmittion, the layer interval table is\n');
