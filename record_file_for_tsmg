@@ -1,0 +1,48 @@
+% 初始化
+%for ite = 1:SIMULATIONTIME*SLOTPERSECOND    %主循环
+    if time_to_wait == 0    %是否产生新流
+        if ite< (SIMULATIONTIME - SHUTDOWN_PERIOD)*SLOTPERSECOND    %是否停止产生流
+        %产生新流
+        %产生新流
+        end
+    end
+    
+    %构造辅助图
+    %构造辅助图
+    
+    %在辅助图中查找路径
+    %在辅助图中查找路径
+    
+    if distance < inf    %是否找到
+        %保存副本
+        while (j < size(path,2)-1)    %开始根据找到的路径更新时移多层图
+            if  mod(path(j),node_numbers) == mod(path(j+1),node_numbers)    %当前路径是存储还是带宽,存储
+                if storage_switch == 0     %是路-存还是存-存，路-存
+                    %记录开始时间
+                    %continue
+                else     %是路-存还是存-存，存-存
+                    if j == 1    %开局特例
+                        %记录开始时间，
+                    end
+                    %continue
+                end
+            else    %当前路径是存储还是带宽,带宽
+                if storage_switch == 1    %是路-存还是存-存，存-路
+                    %更新interval_start和interval_end
+                    if any(layer_interval_table == interval_end)    %是否有重叠，有重叠
+                        %更新index_start和index_end
+                        %减带宽资源（！！！！！）
+                        %减存储资源（！！！！！）
+                    else    %是否有重叠，无重叠
+                        %更新index_start和index_end
+                        for %加层，3个
+                            %加层
+                        end
+                        
+                        for    %减带宽资源
+                        end
+                    end
+                else    %是路-存还是存-存，路-路
+                    %不加层，直接更新
+                end
+            end
