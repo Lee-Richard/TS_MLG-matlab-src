@@ -11,8 +11,6 @@
 
 function [data_of_interest_m] = tsmg(simulation_time,lambda,miu,max_storage_times,temporal_cost,node_storage,wavelength)
 
-
-
 %function TSMG
 %
 %inputs:
@@ -23,7 +21,7 @@ function [data_of_interest_m] = tsmg(simulation_time,lambda,miu,max_storage_time
 %outputs:
 %
 %
-
+% fprintf('max_storage_times = %d\n',max_storage_times);
 %simulation parameters
 COST = temporal_cost;    %存储代价
 SIMULATIONTIME = simulation_time;    %仿真时间
@@ -43,6 +41,7 @@ flow_id = 0;     %流id，递增，唯一
 
 %data of interest
 total_delay = 0;  %总延迟
+this_round_delay = 0;
 bandwidth_utilization=0;  %链路利用率
 number_of_rejected_flow = 0;    %拒绝的流
 number_of_generated_flow = 0;    %总的流
@@ -54,6 +53,7 @@ hop_count = 0;    %？
 max_storage_utilization = zeros(1,14);    %存储最大利用率
 number_of_storaged_flow=0;    %被存储的流的数量
 max_layers = 0;
+data_of_interest_m = [-1,-1,-1,-1];
 
 %%auxiliary tables and parameters
 node_numbers=14;
@@ -88,11 +88,11 @@ unit_bandwidth_table =   [0,1,0,0,0,0,1,0,0,0,0,0,0,1;
                           1,0,0,0,1,0,0,0,0,0,0,0,0,1;
                           0,0,0,1,0,0,0,0,1,0,0,0,0,1;
                           0,0,1,0,1,1,0,0,0,0,0,0,0,0;
-                          0,1,0,1,0,0,0,1,0,0,0,0,0,0;
+                          0,1,0,1,0,0,0,1,0,0,0,1,0,0;
                           0,0,0,1,0,0,1,0,0,0,0,0,0,0;
                           1,0,0,0,0,1,0,0,0,1,0,0,0,0;
                           0,0,0,0,1,0,0,0,0,1,0,0,0,0;
-                          0,0,1,0,0,0,0,0,0,0,1,0,0,0;
+                          0,0,1,0,0,0,0,0,0,0,1,0,1,0;
                           0,0,0,0,0,0,1,1,0,0,1,0,1,0;
                           0,0,0,0,0,0,0,0,1,1,0,1,0,0;
                           0,0,0,0,1,0,0,0,0,0,1,0,1,0;
@@ -108,10 +108,10 @@ tsml_bandwidth_table = [bandwidth_table, storage_table];      %空间域和时�
 tsml_table = [adjacency_matrix,adjacency_auxiliary_matrix];  
 total_bandwidth=sum(sum(bandwidth_table));    %  网络总带宽
 
-fprintf('the init tsml table\n');
-disp(tsml_table);
-fprintf('the init tsml_bandwidth_table\n');
-disp(tsml_bandwidth_table);
+% fprintf('the init tsml table\n');
+% disp(tsml_table);
+% fprintf('the init tsml_bandwidth_table\n');
+% disp(tsml_bandwidth_table);
 
 %main loop
 % fid=fopen('tsml.log','wt');
@@ -133,7 +133,7 @@ for ite = 1:SIMULATIONTIME*SLOTPERSECOND
     %fprintf(fid,'Round %d start:\n',ite);
 %     time_to_wait = uint32(50 * exprnd(1/lambda));
 %     time_to_wait = time_to_wait-1;
-fprintf('ite=%d\n',ite);
+% fprintf('ite=%d\n',ite);
     if time_to_wait == 0                     % 生成新流
         time_to_wait = uint32(exprnd(1/lambda)*SLOTPERSECOND);
         %fprintf(fid,'\ntime to wait = %d\n',time_to_wait);
@@ -151,7 +151,8 @@ fprintf('ite=%d\n',ite);
             new_flow = [flow_id, duration, file_size, source, destination];
             flow_table=[flow_table;new_flow];
             number_of_generated_flow = number_of_generated_flow + 1;
-            fprintf('new flow: source=%d, destination=%d, duration=%d\n',source,destination,duration);
+            this_round_delay = 0;
+%             fprintf('new flow: source=%d, destination=%d, duration=%d\n',source,destination,duration);
         end
     
         %构造辅助图 
@@ -161,8 +162,8 @@ fprintf('ite=%d\n',ite);
         if layers> max_layers
             max_layers = layers;
         end
-        disp(layers);
-        disp(max_layers);
+%         disp(layers);
+%         disp(max_layers);
 %         
 %         %去掉剩余带宽小于请求带宽(默认为1)的空间链路
 %         if layers ~= 1
@@ -211,7 +212,7 @@ fprintf('ite=%d\n',ite);
         %在刚才构造的辅助图中查找路径
         i=1;
 
-        while(i <= layers)
+        while(i <= min(layers,TIMES+1))
             [distance,path] = dijkstra(auxiliary_tsml_table,source,destination+(i-1)*node_numbers);
             if distance == inf
                 i = i+1;
@@ -221,8 +222,8 @@ fprintf('ite=%d\n',ite);
             end
         end
 
-        fprintf('path = ');
-        disp(path);
+%         fprintf('path = ');
+%         disp(path);
         
         %if path exists, update tsmlg
         if distance < inf
@@ -233,7 +234,7 @@ fprintf('ite=%d\n',ite);
 %                     tsml_table(path(i), path(i+1)) = inf;
 %                 end
 %             end
-            
+            this_round_delay = layer_interval_table(floor((path(1,end)-1)/node_numbers)+1);
             %%%%%%更新时移多层图，用到了几层图就添加几层图,遍历path,每一层加一个图。新流的持续时间，和各个层的间隔比较
             %如果加层后，总层数超过了TIMES,就直接break
             storage_switch = 1;    %初始化：存→路or存→存，为了加层
@@ -263,7 +264,7 @@ fprintf('ite=%d\n',ite);
                         if j == 1
                             storage_index_start = find (temp_layer_interval_table == layer_interval_table(layer));
                             index_end = floor((path(j+1)-1)/node_numbers)+1;
-                            disp('aaaaaa');
+%                             disp('aaaaaa');
                             storage_switch = 1;
                         end
                         j = j+1;
@@ -289,8 +290,9 @@ fprintf('ite=%d\n',ite);
                                     tsml_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) = inf;
                                 end
                                 if tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) < 0     %异常处理
-                                    disp('268');
-                                    return;
+                                    tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) = 0;
+                                     disp('268');
+                                    %return;
                                 end
                             end
 
@@ -303,22 +305,23 @@ fprintf('ite=%d\n',ite);
                                         tsml_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j)-1,node_numbers)+1+(k)*node_numbers) = inf;
                                     end
                                     if tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j)-1,node_numbers)+1+(k)*node_numbers) < 0     %异常处理
-                                        disp('282');
-                                        return;
+                                        tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j)-1,node_numbers)+1+(k)*node_numbers) = 0;
+                                         disp('282');
+                                        %return;
                                     end
                                end 
                             end          
                         else    %无重叠层
             %                temp_layer_interval_table = [temp_layer_interval_table, interval_end];
                             %判断是否超出了层
-                            if size(tsml_table,1) == TIMES*node_numbers;
-                                tsml_bandwidth_table = reserve_tsml_bandwidth_table;
-                                tsml_table = reserve_tsml_table;
-                                temp_layer_interval_table = reserve_layer_interval_table;
-                                disp('reject the flow');
-                                number_of_rejected_flow = number_of_rejected_flow + 1;
-                                break;
-                            end
+%                             if size(tsml_table,1) == MAX_LAYER*node_numbers;
+%                                 tsml_bandwidth_table = reserve_tsml_bandwidth_table;
+%                                 tsml_table = reserve_tsml_table;
+%                                 temp_layer_interval_table = reserve_layer_interval_table;
+% %                                 disp('reject the flow');
+%                                 number_of_rejected_flow = number_of_rejected_flow + 1;
+%                                 break;
+%                             end
                             temp_layer_interval_table = [temp_layer_interval_table, interval_end];
                             temp_layer_interval_table = sort(temp_layer_interval_table);
                             index_start = find(temp_layer_interval_table == interval_start);    %
@@ -392,10 +395,12 @@ fprintf('ite=%d\n',ite);
                                     layer_interval_table=reserve_layer_interval_table ;
                                     tsml_table =reserve_tsml_table;
                                     tsml_bandwidth_table = reserve_tsml_bandwidth_table;
+                                    this_round_delay = layer_interval_table(floor((path(1,end)-1)/node_numbers)+1);
                                     continue;
                                 else
-                                    disp('reject the flow');
+%                                     disp('reject the flow');
                                     number_of_rejected_flow = number_of_rejected_flow +1;
+                                    this_round_delay = 0;
                                     break;
                                 end
                           end
@@ -409,8 +414,9 @@ fprintf('ite=%d\n',ite);
                                         tsml_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j)-1,node_numbers)+1+(k)*node_numbers) = inf;
                                     end
                                     if tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j)-1,node_numbers)+1+(k)*node_numbers) < 0     %异常处理
-                                        disp('349');
-                                        return;
+                                        tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j)-1,node_numbers)+1+(k)*node_numbers) = 0;
+                                         disp('349');
+                                        %return;
                                     end
                                end 
                            end 
@@ -458,10 +464,12 @@ fprintf('ite=%d\n',ite);
                                 layer_interval_table=reserve_layer_interval_table ;
                                 tsml_table =reserve_tsml_table;
                                 tsml_bandwidth_table = reserve_tsml_bandwidth_table;
+                                this_round_delay = layer_interval_table(floor((path(1,end)-1)/node_numbers)+1);
                                 continue;
                             else
-                                disp('reject the flow');
+%                                 disp('reject the flow');
                                 number_of_rejected_flow = number_of_rejected_flow + 1;
+                                this_round_delay = 0;
                                 break;
                             end
                         end
@@ -483,7 +491,7 @@ fprintf('ite=%d\n',ite);
         %path not exists
         else
             %reject the flow
-            disp('reject the flow');
+%             disp('reject the flow');
             number_of_rejected_flow = number_of_rejected_flow +1;
         end
     else
@@ -507,7 +515,9 @@ fprintf('ite=%d\n',ite);
         end
     end
 %统计结果
-
+total_delay = total_delay + this_round_delay;
+free_bandwidth = sum(sum(tsml_bandwidth_table(1:node_numbers,1:node_numbers)));
+used_bandwidth = used_bandwidth + total_bandwidth - free_bandwidth;
 % fprintf('at the end of %d ite, the tsml_table\n', ite);
 % disp(tsml_table);
 % fprintf('at the end of %d ite, the tsml_bandwidth_table\n', ite);
@@ -517,12 +527,13 @@ fprintf('ite=%d\n',ite);
 % fprintf('\n\n\n');
     testb = find(tsml_bandwidth_table<0);
     if size(testb,1) ~=0 
-        return;
+        disp(tsml_bandwidth_table);
+        %return;
     end
 end
 
 blocking_ratio = number_of_rejected_flow/number_of_generated_flow;
+average_delay = total_delay /number_of_generated_flow/ SLOTPERSECOND;
+link_utilization = used_bandwidth / total_bandwidth / SIMULATIONTIME / SLOTPERSECOND;
 
-
-
-data_of_interest_m = [blocking_ratio];
+data_of_interest_m = [average_delay, blocking_ratio, link_utilization, max_layers];
