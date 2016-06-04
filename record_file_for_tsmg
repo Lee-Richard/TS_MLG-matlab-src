@@ -43,6 +43,20 @@
                         end
                     end
                 else    %是路-存还是存-存，路-路
-                    %不加层，直接更新
+                    %不加层，使用之前的index_start和index_end，直接更新
+                    for k=index_start:index_end-1
+                        if  bandwidth < 0
+                            auxiliary(k) = inf;
+                            flag = 1;
+                        end
+                        if flag == 1
+                            flag = 0;
+                            %find path
+                            i = 1;
+                            while(i<=layers)
+                            end
+                            if distance < inf
+                            
+                            end
                 end
             end
