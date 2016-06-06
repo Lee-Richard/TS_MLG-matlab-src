@@ -149,7 +149,7 @@ for ite = 1:SIMULATIONTIME*SLOTPERSECOND
             capacity_of_all_flow = capacity_of_all_flow + file_size;
             %fprintf(fid,'New flow generated at round %d: id=%d, source=%d, destination=%d,duration=%d\n',ite,flow_id, source, destination,duration);
             new_flow = [flow_id, duration, file_size, source, destination];
-            flow_table=[flow_table;new_flow];
+%             flow_table=[flow_table;new_flow];
             number_of_generated_flow = number_of_generated_flow + 1;
             this_round_delay = 0;
 %             fprintf('new flow: source=%d, destination=%d, duration=%d\n',source,destination,duration);
@@ -211,13 +211,23 @@ for ite = 1:SIMULATIONTIME*SLOTPERSECOND
 
         %在刚才构造的辅助图中查找路径
         i=1;
-
-        while(i <= min(layers,TIMES+1))
+        storage_times = 0;
+        while(i <= layers)
             [distance,path] = dijkstra(auxiliary_tsml_table,source,destination+(i-1)*node_numbers);
             if distance == inf
                 i = i+1;
                 continue;
             else
+                path_layer=floor((path-1)/node_numbers)+1;
+                unique_path_layer = unique(path_layer);
+                for layer_i = 1:size(unique_path_layer,2)
+                    if size(find(path_layer==unique_path_layer(1,layer_i)),2)>1
+                        storage_times = storage_times + 1;
+                    end
+                end
+                if storage_times > TIMES 
+                    distance = inf;
+                end
                 break;
             end
         end
@@ -289,10 +299,52 @@ for ite = 1:SIMULATIONTIME*SLOTPERSECOND
                                 if tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) == 0     %同步更新tsml_table
                                     tsml_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) = inf;
                                 end
-                                if tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) < 0     %异常处理
-                                    tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) = 0;
-                                     disp('268');
-                                    %return;
+                                if tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) < 0  %层重叠
+                                  auxiliary_tsml_table(path(j),path(j+1)) = inf;
+                                  layer_overlay_flag = 1;
+                                  break;
+                                end
+%                                 if tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) < 0     %异常处理
+%                                     tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j+1)-1,node_numbers)+1+(k-1)*node_numbers) = 0;
+%                                      disp('268');
+%                                     %return;
+%                                 end
+                            end
+                            
+                            if layer_overlay_flag == 1    %重叠
+                              %找路径，初始化，continue
+                              layer_overlay_flag = 0;
+                                i=1;
+                                while(i <= min(layers,TIMES+1))
+                                    [distance,path] = dijkstra(auxiliary_tsml_table,source,destination+(i-1)*node_numbers);
+                                    if distance == inf
+                                        i = i+1;
+                                        continue;
+                                    else
+                                        break;
+                                    end
+                                end
+                                temp_layer_interval_table = layer_interval_table;
+                                layer_interval_table=reserve_layer_interval_table ;
+                                tsml_table =reserve_tsml_table;
+                                tsml_bandwidth_table = reserve_tsml_bandwidth_table;
+                                if distance < inf
+                                    j=1;
+                                    storage_switch = 1;    %初始化：存→路or存→存，为了加层
+                                    % index1 = 1;     
+                                    index_end = 1;    %每次开始前重置是必要的
+                                    storage_index_start = -1;
+                                    storage_index_end = 0;
+%                                     layer_overlay_flag = 0;
+                                    %j=1;    %保证interval_table和tsml_table的层数一致
+                                    
+                                    this_round_delay = layer_interval_table(floor((path(1,end)-1)/node_numbers)+1);
+                                    continue;
+                                else
+%                                     disp('reject the flow');
+                                    number_of_rejected_flow = number_of_rejected_flow +1;
+                                    this_round_delay = 0;
+                                    break;
                                 end
                             end
 
@@ -373,7 +425,7 @@ for ite = 1:SIMULATIONTIME*SLOTPERSECOND
                               %找路径，初始化，continue
                               layer_overlay_flag = 0;
                                 i=1;
-                                while(i <= layers)
+                                while(i <= min(layers,TIMES+1))
                                     [distance,path] = dijkstra(auxiliary_tsml_table,source,destination+(i-1)*node_numbers);
                                     if distance == inf
                                         i = i+1;
@@ -382,6 +434,10 @@ for ite = 1:SIMULATIONTIME*SLOTPERSECOND
                                         break;
                                     end
                                 end
+                                temp_layer_interval_table = layer_interval_table;
+                                layer_interval_table=reserve_layer_interval_table ;
+                                tsml_table =reserve_tsml_table;
+                                tsml_bandwidth_table = reserve_tsml_bandwidth_table;
                                 if distance < inf
                                     j=1;
                                     storage_switch = 1;    %初始化：存→路or存→存，为了加层
@@ -389,12 +445,9 @@ for ite = 1:SIMULATIONTIME*SLOTPERSECOND
                                     index_end = 1;    %每次开始前重置是必要的
                                     storage_index_start = -1;
                                     storage_index_end = 0;
-                                    layer_overlay_flag = 0;
+%                                     layer_overlay_flag = 0;
                                     %j=1;    %保证interval_table和tsml_table的层数一致
-                                    temp_layer_interval_table = layer_interval_table;
-                                    layer_interval_table=reserve_layer_interval_table ;
-                                    tsml_table =reserve_tsml_table;
-                                    tsml_bandwidth_table = reserve_tsml_bandwidth_table;
+                                    
                                     this_round_delay = layer_interval_table(floor((path(1,end)-1)/node_numbers)+1);
                                     continue;
                                 else
@@ -420,6 +473,42 @@ for ite = 1:SIMULATIONTIME*SLOTPERSECOND
                                     end
                                end 
                            end 
+                           if layer_overlay_flag == 1    %重叠
+                              %找路径，初始化，continue
+                              layer_overlay_flag = 0;
+                                i=1;
+                                while(i <= min(layers,TIMES+1))
+                                    [distance,path] = dijkstra(auxiliary_tsml_table,source,destination+(i-1)*node_numbers);
+                                    if distance == inf
+                                        i = i+1;
+                                        continue;
+                                    else
+                                        break;
+                                    end
+                                end
+                                temp_layer_interval_table = layer_interval_table;
+                                layer_interval_table=reserve_layer_interval_table ;
+                                tsml_table =reserve_tsml_table;
+                                tsml_bandwidth_table = reserve_tsml_bandwidth_table;
+                                if distance < inf
+                                    j=1;
+                                    storage_switch = 1;    %初始化：存→路or存→存，为了加层
+                                    % index1 = 1;     
+                                    index_end = 1;    %每次开始前重置是必要的
+                                    storage_index_start = -1;
+                                    storage_index_end = 0;
+%                                     layer_overlay_flag = 0;
+                                    %j=1;    %保证interval_table和tsml_table的层数一致
+                                    
+                                    this_round_delay = layer_interval_table(floor((path(1,end)-1)/node_numbers)+1);
+                                    continue;
+                                else
+%                                     disp('reject the flow');
+                                    number_of_rejected_flow = number_of_rejected_flow +1;
+                                    this_round_delay = 0;
+                                    break;
+                                end
+                            end
                         end  
                     else    %路→路，正常,续用之前的index1和index2，不加层，减资源  
                         for k=index_start:index_end-1   %层
@@ -442,7 +531,7 @@ for ite = 1:SIMULATIONTIME*SLOTPERSECOND
                           %找路径，初始化，continue
                           layer_overlay_flag = 0;
                             i=1;
-                            while(i <= layers)
+                            while(i <= min(layers,TIMES+1))
                                 [distance,path] = dijkstra(auxiliary_tsml_table,source,destination+(i-1)*node_numbers);
                                 if distance == inf
                                     i = i+1;
@@ -451,6 +540,10 @@ for ite = 1:SIMULATIONTIME*SLOTPERSECOND
                                     break;
                                 end
                             end
+                            temp_layer_interval_table = layer_interval_table;
+                            layer_interval_table=reserve_layer_interval_table ;
+                            tsml_table =reserve_tsml_table;
+                            tsml_bandwidth_table = reserve_tsml_bandwidth_table;
                             if distance < inf
                                 j=1;
                                 storage_switch = 1;    %初始化：存→路or存→存，为了加层
@@ -458,12 +551,8 @@ for ite = 1:SIMULATIONTIME*SLOTPERSECOND
                                 index_end = 1;    %每次开始前重置是必要的
                                 storage_index_start = -1;
                                 storage_index_end = 0;
-                                layer_overlay_flag = 0;
                                 %j=1;    %保证interval_table和tsml_table的层数一致
-                                temp_layer_interval_table = layer_interval_table;
-                                layer_interval_table=reserve_layer_interval_table ;
-                                tsml_table =reserve_tsml_table;
-                                tsml_bandwidth_table = reserve_tsml_bandwidth_table;
+                                
                                 this_round_delay = layer_interval_table(floor((path(1,end)-1)/node_numbers)+1);
                                 continue;
                             else
