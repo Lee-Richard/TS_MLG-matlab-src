@@ -315,12 +315,23 @@ for ite = 1:SIMULATIONTIME*SLOTPERSECOND
                               %找路径，初始化，continue
                               layer_overlay_flag = 0;
                                 i=1;
-                                while(i <= min(layers,TIMES+1))
+                                storage_times = 0;
+                                while(i <= layers)
                                     [distance,path] = dijkstra(auxiliary_tsml_table,source,destination+(i-1)*node_numbers);
                                     if distance == inf
                                         i = i+1;
                                         continue;
                                     else
+                                        path_layer=floor((path-1)/node_numbers)+1;
+                                        unique_path_layer = unique(path_layer);
+                                        for layer_i = 1:size(unique_path_layer,2)
+                                            if size(find(path_layer==unique_path_layer(1,layer_i)),2)>1
+                                                storage_times = storage_times + 1;
+                                            end
+                                        end
+                                        if storage_times > TIMES 
+                                            distance = inf;
+                                        end
                                         break;
                                     end
                                 end
@@ -425,12 +436,23 @@ for ite = 1:SIMULATIONTIME*SLOTPERSECOND
                               %找路径，初始化，continue
                               layer_overlay_flag = 0;
                                 i=1;
-                                while(i <= min(layers,TIMES+1))
+                                storage_times = 0;
+                                while(i <= layers)
                                     [distance,path] = dijkstra(auxiliary_tsml_table,source,destination+(i-1)*node_numbers);
                                     if distance == inf
                                         i = i+1;
                                         continue;
                                     else
+                                        path_layer=floor((path-1)/node_numbers)+1;
+                                        unique_path_layer = unique(path_layer);
+                                        for layer_i = 1:size(unique_path_layer,2)
+                                            if size(find(path_layer==unique_path_layer(1,layer_i)),2)>1
+                                                storage_times = storage_times + 1;
+                                            end
+                                        end
+                                        if storage_times > TIMES 
+                                            distance = inf;
+                                        end
                                         break;
                                     end
                                 end
@@ -466,10 +488,10 @@ for ite = 1:SIMULATIONTIME*SLOTPERSECOND
                                     if tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j)-1,node_numbers)+1+(k)*node_numbers) == 0     %同步更新tsml_table
                                         tsml_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j)-1,node_numbers)+1+(k)*node_numbers) = inf;
                                     end
-                                    if tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j)-1,node_numbers)+1+(k)*node_numbers) < 0     %异常处理
-                                        tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j)-1,node_numbers)+1+(k)*node_numbers) = 0;
-                                         disp('349');
-                                        %return;
+                                    if tsml_bandwidth_table(mod(path(j)-1,node_numbers)+1+(k-1)*node_numbers,mod(path(j)-1,node_numbers)+1+(k)*node_numbers) < 0  %层重叠
+                                        auxiliary_tsml_table(path(j),path(j+1)) = inf;
+                                        layer_overlay_flag = 1;
+                                        break;
                                     end
                                end 
                            end 
@@ -477,12 +499,23 @@ for ite = 1:SIMULATIONTIME*SLOTPERSECOND
                               %找路径，初始化，continue
                               layer_overlay_flag = 0;
                                 i=1;
-                                while(i <= min(layers,TIMES+1))
+                                storage_times = 0;
+                                while(i <= layers)
                                     [distance,path] = dijkstra(auxiliary_tsml_table,source,destination+(i-1)*node_numbers);
                                     if distance == inf
                                         i = i+1;
                                         continue;
                                     else
+                                        path_layer=floor((path-1)/node_numbers)+1;
+                                        unique_path_layer = unique(path_layer);
+                                        for layer_i = 1:size(unique_path_layer,2)
+                                            if size(find(path_layer==unique_path_layer(1,layer_i)),2)>1
+                                                storage_times = storage_times + 1;
+                                            end
+                                        end
+                                        if storage_times > TIMES 
+                                            distance = inf;
+                                        end
                                         break;
                                     end
                                 end
@@ -531,15 +564,26 @@ for ite = 1:SIMULATIONTIME*SLOTPERSECOND
                           %找路径，初始化，continue
                           layer_overlay_flag = 0;
                             i=1;
-                            while(i <= min(layers,TIMES+1))
-                                [distance,path] = dijkstra(auxiliary_tsml_table,source,destination+(i-1)*node_numbers);
-                                if distance == inf
-                                    i = i+1;
-                                    continue;
-                                else
-                                    break;
+                            storage_times = 0;
+                                while(i <= layers)
+                                    [distance,path] = dijkstra(auxiliary_tsml_table,source,destination+(i-1)*node_numbers);
+                                    if distance == inf
+                                        i = i+1;
+                                        continue;
+                                    else
+                                        path_layer=floor((path-1)/node_numbers)+1;
+                                        unique_path_layer = unique(path_layer);
+                                        for layer_i = 1:size(unique_path_layer,2)
+                                            if size(find(path_layer==unique_path_layer(1,layer_i)),2)>1
+                                                storage_times = storage_times + 1;
+                                            end
+                                        end
+                                        if storage_times > TIMES 
+                                            distance = inf;
+                                        end
+                                        break;
+                                    end
                                 end
-                            end
                             temp_layer_interval_table = layer_interval_table;
                             layer_interval_table=reserve_layer_interval_table ;
                             tsml_table =reserve_tsml_table;
