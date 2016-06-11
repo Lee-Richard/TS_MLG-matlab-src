@@ -53,6 +53,7 @@ hop_count = 0;    %？
 max_storage_utilization = zeros(1,14);    %存储最大利用率
 number_of_storaged_flow=0;    %被存储的流的数量
 max_layers = 0;
+total_layers = 0;
 data_of_interest_m = [-1,-1,-1,-1];
 
 %%auxiliary tables and parameters
@@ -114,7 +115,7 @@ total_bandwidth=sum(sum(bandwidth_table));    %  网络总带宽
 % disp(tsml_bandwidth_table);
 
 %main loop
-% fid=fopen('tsml.log','wt');
+fid=fopen('tsml.log','wt');
 % fprintf(fid,'\ntsml table at 0(beginning):\n');
 % fprintf(fid,'%d %d %d %d %d %d %d %d %d\n',tsml_table');
 % fprintf(fid,'\ntsml bandwidth table at 0(beginning):\n');
@@ -162,6 +163,7 @@ for ite = 1:SIMULATIONTIME*SLOTPERSECOND
         if layers> max_layers
             max_layers = layers;
         end
+%         total_layers = total_layers + layers;
 %         disp(layers);
 %         disp(max_layers);
 %         
@@ -232,8 +234,8 @@ for ite = 1:SIMULATIONTIME*SLOTPERSECOND
             end
         end
 
-%         fprintf('path = ');
-%         disp(path);
+%         fprintf(fid,'\ntsml table at 0(beginning):\n');
+%         fprintf(fid,path);
         
         %if path exists, update tsmlg
         if distance < inf
@@ -649,6 +651,7 @@ for ite = 1:SIMULATIONTIME*SLOTPERSECOND
     end
 %统计结果
 total_delay = total_delay + this_round_delay;
+total_layers = total_layers + size(tsml_table,1)/node_numbers;
 free_bandwidth = sum(sum(tsml_bandwidth_table(1:node_numbers,1:node_numbers)));
 used_bandwidth = used_bandwidth + total_bandwidth - free_bandwidth;
 % fprintf('at the end of %d ite, the tsml_table\n', ite);
@@ -668,5 +671,6 @@ end
 blocking_ratio = number_of_rejected_flow/number_of_generated_flow;
 average_delay = total_delay /number_of_generated_flow/ SLOTPERSECOND;
 link_utilization = used_bandwidth / total_bandwidth / SIMULATIONTIME / SLOTPERSECOND;
+average_layers = total_layers / SIMULATIONTIME / SLOTPERSECOND;
 
-data_of_interest_m = [average_delay, blocking_ratio, link_utilization, max_layers];
+data_of_interest_m = [average_delay, blocking_ratio, link_utilization, max_layers,average_layers];
